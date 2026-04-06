@@ -146,3 +146,6 @@ cython_debug/
 
 # VS Code
 .vscode/
+
+# models
+models/
