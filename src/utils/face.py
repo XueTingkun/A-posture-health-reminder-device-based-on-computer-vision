@@ -41,6 +41,25 @@ class FaceLandmarkerApp:
         self.IRIS_COLOR = (0, 255, 255)  # Cyan iris
         self.POINT_COLOR = (0, 0, 255)  # Red key points
 
+        self.model_points = np.array(
+            [
+                [0.0, 0.0, 0.0],  # Nose tip (Landmark 1)
+                [0.0, -330.0, -65.0],  # Chin (Landmark 199)
+                [-225.0, 170.0, -135.0],  # Left eye corner (Landmark 33)
+                [225.0, 170.0, -135.0],  # Right eye corner (Landmark 263)
+                [-150.0, -150.0, -125.0],  # Left mouth corner (Landmark 61)
+                [150.0, -150.0, -125.0],  # Right mouth corner (Landmark 291)
+            ],
+            dtype=np.float64,
+        )
+        # Corresponding 2D key point indices (MediaPipe 478-point model)
+        self.image_points_idx = [1, 199, 33, 263, 61, 291]
+
+        # Head down threshold (angle, negative value indicates looking down)
+        self.PITCH_THRESHOLD = -25  # Warning triggered when looking down exceeds 25°
+        # Head tilt threshold (warning triggered when absolute value exceeds this)
+        self.ROLL_THRESHOLD = 15  # Warning triggered when side tilt exceeds 15°
+
     def result_callback(self, result, output_image: mp.Image, timestamp_ms: int):
         """Asynchronous detection result callback function (executed in a separate thread)"""
         with self.lock:
@@ -64,6 +83,61 @@ class FaceLandmarkerApp:
         )
         self.landmarker = vision.FaceLandmarker.create_from_options(options)
         print("[INFO] Face Landmarker initialized")
+
+    def get_camera_matrix(self, frame_w, frame_h):
+        """Construct approximate camera intrinsic matrix"""
+        focal_length = frame_w
+        center = (frame_w / 2, frame_h / 2)
+        camera_matrix = np.array(
+            [[focal_length, 0, center[0]], [0, focal_length, center[1]], [0, 0, 1]],
+            dtype="double",
+        )
+        return camera_matrix
+
+    def get_head_pose(self, landmarks, frame_w, frame_h):
+        """
+        Calculate head rotation Euler angles via solvePnP
+        Args:
+            landmarks: NormalizedLandmarkList returned by MediaPipe (each element has x, y, z)
+            frame_w, frame_h: Image width and height
+        Returns:
+            (roll, pitch, yaw) in degrees; returns (None, None, None) on failure
+        """
+        # Extract 2D image coordinates (pixels)
+        image_points = []
+        for idx in self.image_points_idx:
+            # Check index validity (MediaPipe Face Landmarker returns 478 points)
+            if idx >= len(landmarks):
+                return None, None, None
+            x = landmarks[idx].x * frame_w
+            y = landmarks[idx].y * frame_h
+            image_points.append([x, y])
+        image_points = np.array(image_points, dtype=np.float64)
+
+        # Camera parameters
+        camera_matrix = self.get_camera_matrix(frame_w, frame_h)
+        dist_coeffs = np.zeros((4, 1))
+
+        # Solve for rotation vector and translation vector
+        success, rotation_vector, translation_vector = cv2.solvePnP(
+            self.model_points,
+            image_points,
+            camera_matrix,
+            dist_coeffs,
+            flags=cv2.SOLVEPNP_ITERATIVE,
+        )
+        if not success:
+            return None, None, None
+
+        # Rotation vector -> Rotation matrix
+        rotation_matrix, _ = cv2.Rodrigues(rotation_vector)
+
+        # Decompose Euler angles from rotation matrix (cv2.RQDecomp3x3 returns: rotation matrix, Euler angles(degrees), ...)
+        # Output order: pitch, yaw, roll
+        angles, _, _, _, _, _ = cv2.RQDecomp3x3(rotation_matrix)
+        pitch, yaw, roll = angles[0], angles[1], angles[2]
+
+        return roll, pitch, yaw
 
     def draw_landmarks_on_image(self, rgb_image, detection_result):
         """Draw face landmarks and mesh on image - manually implemented drawing functionality"""
@@ -312,6 +386,61 @@ class FaceLandmarkerApp:
                     self.draw_transformation_matrix_info(
                         display_image, self.detection_result
                     )
+
+                    # ------------------------------
+                    # Calculate and display head pose angles (Pitch, Roll) and corresponding warnings
+                    # ------------------------------
+                    if self.detection_result.face_landmarks:
+                        face_landmarks = self.detection_result.face_landmarks[0]
+                        frame_h, frame_w = display_image.shape[:2]
+                        roll, pitch, yaw = self.get_head_pose(
+                            face_landmarks, frame_w, frame_h
+                        )
+                        if pitch is not None:
+                            # Display Pitch angle (looking down/up)
+                            cv2.putText(
+                                display_image,
+                                f"Pitch: {int(pitch)} deg",
+                                (10, 390),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.7,
+                                (0, 255, 255),
+                                2,
+                            )
+                            # Head down warning
+                            if pitch < self.PITCH_THRESHOLD:
+                                cv2.putText(
+                                    display_image,
+                                    "WARNING: Turtle Neck (Head Down)!",
+                                    (10, 430),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.7,
+                                    (0, 0, 255),
+                                    2,
+                                )
+
+                            # New: Display Roll angle (head tilt)
+                            cv2.putText(
+                                display_image,
+                                f"Roll: {int(roll)} deg",
+                                (10, 470),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.7,
+                                (255, 255, 0),
+                                2,
+                            )
+                            # Head tilt warning (left/right inclination)
+                            if abs(roll) > self.ROLL_THRESHOLD:
+                                direction = "Left" if roll > 0 else "Right"
+                                cv2.putText(
+                                    display_image,
+                                    f"WARNING: Head Tilted {direction}! ({int(roll)} deg)",
+                                    (10, 510),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.7,
+                                    (0, 0, 255),
+                                    2,
+                                )
 
             # Calculate and display FPS
             current_time = time.time()
