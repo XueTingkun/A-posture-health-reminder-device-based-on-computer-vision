@@ -1,12 +1,13 @@
+import json
+import threading
+import time
+
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import numpy as np
-import threading
-import time
-import os
-import sys
+
 from utils.DoubleBuffer import DoubleBuffer
 
 
@@ -22,6 +23,10 @@ class FaceLandmarkerApp:
         self.detection_result = None
         self.latest_image = None
         self.lock = threading.Lock()
+
+        # face configs
+        with open("./src/config/mp_face.json") as f:
+            self.face_configs = json.load(f)
 
         # Model path
         self.model_path = "./models/face_landmarker.task"
@@ -98,166 +103,7 @@ class FaceLandmarkerApp:
     def draw_mesh(self, image, points):
         """Draw face triangular mesh"""
         # FACEMESH_TESSELATION connection definitions (partial main connections)
-        mesh_connections = [
-            # Forehead region
-            [10, 338],
-            [338, 297],
-            [297, 332],
-            [332, 284],
-            [284, 251],
-            [251, 389],
-            [389, 356],
-            [356, 454],
-            [454, 323],
-            [323, 361],
-            [361, 288],
-            [288, 397],
-            [397, 365],
-            [365, 379],
-            [379, 378],
-            [378, 400],
-            [400, 377],
-            [377, 152],
-            [152, 148],
-            [148, 176],
-            [176, 149],
-            [149, 150],
-            [150, 136],
-            [136, 172],
-            [172, 58],
-            [58, 132],
-            [132, 93],
-            [93, 234],
-            [234, 127],
-            [127, 162],
-            [162, 21],
-            [21, 54],
-            [54, 103],
-            [103, 67],
-            [67, 109],
-            [109, 10],
-            # Eye region
-            [33, 7],
-            [7, 163],
-            [163, 144],
-            [144, 145],
-            [145, 153],
-            [153, 154],
-            [154, 155],
-            [155, 133],
-            [133, 246],
-            [246, 161],
-            [161, 160],
-            [160, 159],
-            [159, 158],
-            [158, 157],
-            [157, 173],
-            [173, 133],
-            [362, 382],
-            [382, 381],
-            [381, 380],
-            [380, 374],
-            [374, 373],
-            [373, 390],
-            [390, 249],
-            [249, 263],
-            [263, 466],
-            [466, 388],
-            [388, 387],
-            [387, 386],
-            [386, 385],
-            [385, 384],
-            [384, 398],
-            [398, 362],
-            # Nose region
-            [168, 6],
-            [6, 197],
-            [197, 195],
-            [195, 5],
-            [5, 4],
-            [4, 1],
-            [1, 19],
-            [19, 94],
-            [94, 2],
-            [2, 164],
-            [164, 0],
-            [0, 11],
-            [11, 12],
-            [12, 13],
-            [13, 14],
-            [14, 15],
-            [15, 16],
-            [16, 17],
-            [17, 18],
-            [18, 200],
-            [200, 199],
-            [199, 175],
-            [175, 152],
-            # Mouth region
-            [61, 185],
-            [185, 40],
-            [40, 39],
-            [39, 37],
-            [37, 0],
-            [0, 267],
-            [267, 269],
-            [269, 270],
-            [270, 409],
-            [409, 291],
-            [291, 375],
-            [375, 321],
-            [321, 405],
-            [405, 314],
-            [314, 17],
-            [17, 84],
-            [84, 181],
-            [181, 91],
-            [91, 146],
-            [146, 61],
-            [78, 191],
-            [191, 80],
-            [80, 81],
-            [81, 82],
-            [82, 13],
-            [13, 312],
-            [312, 311],
-            [311, 310],
-            [310, 415],
-            [415, 308],
-            [308, 324],
-            [324, 318],
-            [318, 402],
-            [402, 317],
-            [317, 14],
-            [14, 87],
-            [87, 178],
-            [178, 88],
-            [88, 95],
-            [95, 78],
-            # Jaw contour
-            [78, 95],
-            [95, 88],
-            [88, 178],
-            [178, 87],
-            [87, 14],
-            [14, 317],
-            [317, 402],
-            [402, 318],
-            [318, 324],
-            [324, 308],
-            [308, 415],
-            [415, 310],
-            [310, 311],
-            [311, 312],
-            [312, 13],
-            [13, 82],
-            [82, 81],
-            [81, 80],
-            [80, 191],
-            [191, 78],
-        ]
-
-        for connection in mesh_connections:
+        for connection in self.face_configs["mesh_connections"]:
             start_idx, end_idx = connection
             if start_idx < len(points) and end_idx < len(points):
                 cv2.line(image, points[start_idx], points[end_idx], self.MESH_COLOR, 1)
@@ -265,94 +111,35 @@ class FaceLandmarkerApp:
     def draw_contours(self, image, points):
         """Draw facial contours"""
         # Face outer contour
-        face_outline = [
-            10,
-            338,
-            297,
-            332,
-            284,
-            251,
-            389,
-            356,
-            454,
-            323,
-            361,
-            288,
-            397,
-            365,
-            379,
-            378,
-            400,
-            377,
-            152,
-            148,
-            176,
-            149,
-            150,
-            136,
-            172,
-            58,
-            132,
-            93,
-            234,
-            127,
-            162,
-            21,
-            54,
-            103,
-            67,
-            109,
-            10,
-        ]
-
-        for i in range(len(face_outline) - 1):
-            idx1, idx2 = face_outline[i], face_outline[i + 1]
+        for i in range(len(self.face_configs["face_outline"]) - 1):
+            idx1, idx2 = (
+                self.face_configs["face_outline"][i],
+                self.face_configs["face_outline"][i + 1],
+            )
             if idx1 < len(points) and idx2 < len(points):
                 cv2.line(image, points[idx1], points[idx2], self.CONTOUR_COLOR, 2)
 
         # Left eyebrow
-        left_brow = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
-        for i in range(len(left_brow) - 1):
-            idx1, idx2 = left_brow[i], left_brow[i + 1]
+        for i in range(len(self.face_configs["left_brow"]) - 1):
+            idx1, idx2 = (
+                self.face_configs["left_brow"][i],
+                self.face_configs["left_brow"][i + 1],
+            )
             if idx1 < len(points) and idx2 < len(points):
                 cv2.line(image, points[idx1], points[idx2], self.CONTOUR_COLOR, 2)
 
         # Right eyebrow
-        right_brow = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
-        for i in range(len(right_brow) - 1):
-            idx1, idx2 = right_brow[i], right_brow[i + 1]
+        for i in range(len(self.face_configs["right_brow"]) - 1):
+            idx1, idx2 = (
+                self.face_configs["right_brow"][i],
+                self.face_configs["right_brow"][i + 1],
+            )
             if idx1 < len(points) and idx2 < len(points):
                 cv2.line(image, points[idx1], points[idx2], self.CONTOUR_COLOR, 2)
 
         # Nose
-        nose = [
-            168,
-            6,
-            197,
-            195,
-            5,
-            4,
-            1,
-            19,
-            94,
-            2,
-            164,
-            0,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            200,
-            199,
-            175,
-            152,
-        ]
-        for i in range(len(nose) - 1):
-            idx1, idx2 = nose[i], nose[i + 1]
+        for i in range(len(self.face_configs["nose"]) - 1):
+            idx1, idx2 = self.face_configs["nose"][i], self.face_configs["nose"][i + 1]
             if idx1 < len(points) and idx2 < len(points):
                 cv2.line(image, points[idx1], points[idx2], self.CONTOUR_COLOR, 1)
 
@@ -378,26 +165,14 @@ class FaceLandmarkerApp:
 
     def draw_key_indices(self, image, points):
         """Draw indices on key feature points"""
-        key_indices = {
-            1: "Tip of the nose",
-            33: "Inner corner of the left eye",
-            133: "Outer corner of the left eye",
-            362: "Inner corner of the right eye",
-            263: "Outer corner of the right eye",
-            61: "Left corner of the mouth",
-            291: "Right corner of the mouth",
-            0: "Middle of the upper lip",
-            17: "Middle of the lower lip",
-            152: "Chin",
-        }
-
-        for idx, label in key_indices.items():
+        for idx_str, label in self.face_configs["key_indices"].items():
+            idx = int(idx_str)
             if idx < len(points):
                 x, y = points[idx]
                 cv2.circle(image, (x, y), 3, (0, 255, 255), -1)
                 cv2.putText(
                     image,
-                    str(idx),
+                    str(idx_str),
                     (x + 5, y - 5),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.4,
@@ -410,18 +185,6 @@ class FaceLandmarkerApp:
         height, width = image.shape[:2]
 
         # Select important expression coefficients to display
-        important_categories = {
-            "eyeBlinkLeft": "Left eye blink",
-            "eyeBlinkRight": "Right eye blink",
-            "mouthSmileLeft": "Left smile",
-            "mouthSmileRight": "Right smile",
-            "mouthOpen": "Open mouth",
-            "jawOpen": "Jaw open",
-            "browInnerUp": "Brow Inner Up",
-            "browOuterUpLeft": "Left eyebrow up",
-            "browOuterUpRight": "Right eyebrow up",
-        }
-
         y_offset = 30
         cv2.putText(
             image,
@@ -444,8 +207,8 @@ class FaceLandmarkerApp:
                 )
                 score = blendshape.score if hasattr(blendshape, "score") else 0
 
-                if category_name in important_categories:
-                    cn_name = important_categories[category_name]
+                if category_name in self.face_configs["important_categories"]:
+                    cn_name = self.face_configs["important_categories"][category_name]
                     if score > 0.05:  # Only display meaningful values
                         text = f"{cn_name}: {score:.2f}"
                         # Display different colors based on value size
@@ -577,7 +340,13 @@ class FaceLandmarkerApp:
             )
             color = (0, 255, 0) if status == "Face Detected" else (0, 0, 255)
             cv2.putText(
-                display_image, status, (10, 670), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2
+                display_image,
+                status,
+                (10, 670),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                color,
+                2,
             )
 
             # Display number of key points

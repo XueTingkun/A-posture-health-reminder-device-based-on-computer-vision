@@ -1,9 +1,8 @@
-import threading
-import json
-import time
-from typing import Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass
 from enum import Enum
+import threading
+import time
+from typing import Dict, Any, Optional, Tuple, Union
 
 
 class BufferState(Enum):
