@@ -126,7 +126,7 @@ class PostureApp:
             anchor=tk.W
         )
         self.metrics_text = tk.StringVar(
-            value="歪头角度: 0.0°\n乌龟颈距离: 0.0px\n刷新率: 0 FPS"
+            value="Pitch: 0.0°\nRoll: 0.0°\nRefresh rate: 0.0 FPS"
         )
         ttk.Label(
             self.metrics_card,
@@ -259,7 +259,7 @@ class PostureApp:
         """Update status card and dashboard data"""
         try:
             # Update status text
-            status_text = metadata.get("status", "Unknown")
+            status_text = metadata.get("status_text", "Unknown")
             self.status_var.set(status_text)
 
             # Set color based on status
@@ -272,10 +272,8 @@ class PostureApp:
 
             # Update dashboard metrics
             metrics = metadata.get("metrics", {})
-            metrics_text = f"Head tilt: {metrics.get('head_tilt', 0.0):.1f}°\n"
-            metrics_text += (
-                f"Turtle neck distance: {metrics.get('neck_distance', 0.0):.1f}px\n"
-            )
+            metrics_text = f"Pitch: {metrics.get('pitch', 0.0):.1f}°\n"
+            metrics_text += f"Roll: {metrics.get('roll', 0.0):.1f}°\n"
             metrics_text += f"Refresh rate: {metrics.get('fps', 0.0):.1f} FPS"
             self.metrics_text.set(metrics_text)
 

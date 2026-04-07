@@ -358,6 +358,7 @@ class FaceLandmarkerApp:
             ret, frame = self.cap.read()
             if not ret:
                 print("[ERROR] Cannot read camera frame")
+                buffer.write({"status_text": "Error"}, [])
                 break
 
             # Horizontal flip (mirror effect, like selfie)
@@ -365,6 +366,11 @@ class FaceLandmarkerApp:
 
             # Process current frame (asynchronously send to detector)
             self.process_frame(frame)
+
+            roll = None
+            pitch = None
+            yaw = None
+            status_text = "Normal"
 
             # Get latest detection result and draw
             display_image = frame.copy()
@@ -418,6 +424,7 @@ class FaceLandmarkerApp:
                                     (0, 0, 255),
                                     2,
                                 )
+                                status_text = "Warning"
 
                             # New: Display Roll angle (head tilt)
                             cv2.putText(
@@ -441,6 +448,7 @@ class FaceLandmarkerApp:
                                     (0, 0, 255),
                                     2,
                                 )
+                                status_text = "Warning"
 
             # Calculate and display FPS
             current_time = time.time()
@@ -493,7 +501,18 @@ class FaceLandmarkerApp:
 
             # Display image
             # cv2.imshow(self.window_name, display_image)
-            buffer.write({}, display_image)
+            buffer.write(
+                {
+                    "metrics": {
+                        "pitch": pitch or 0.0,
+                        "roll": roll or 0.0,
+                        "yaw": yaw or 0.0,
+                        "fps": fps or 0.0,
+                    },
+                    "status_text": status_text,
+                },
+                display_image,
+            )
 
             # Key handling
             key = cv2.waitKey(1) & 0xFF
