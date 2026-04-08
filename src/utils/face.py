@@ -1,8 +1,10 @@
 import json
 import threading
 import time
+from queue import Queue, Empty
 
 import cv2
+from cv2_enumerate_cameras import enumerate_cameras as cv2_enum_cameras
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -18,6 +20,8 @@ class FaceLandmarkerApp:
         self.landmarker = None
         self.running = False
         self.frame_timestamp_ms = 0
+        self.camera_arr = []
+        self.current_camera_id = -1
 
         # Store detection results
         self.detection_result = None
@@ -30,10 +34,6 @@ class FaceLandmarkerApp:
 
         # Model path
         self.model_path = "./models/face_landmarker.task"
-
-        # Window settings
-        self.window_name = "MediaPipe Face Landmarker"
-        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
 
         # Drawing color configuration
         self.MESH_COLOR = (0, 255, 0)  # Green mesh
@@ -349,16 +349,47 @@ class FaceLandmarkerApp:
         self.landmarker.detect_async(mp_image, self.frame_timestamp_ms)
         self.frame_timestamp_ms += 1
 
-    def display_loop(self, buffer: DoubleBuffer, stop_event: threading.Event):
+    def display_loop(
+        self,
+        db_f2t: DoubleBuffer,
+        q_f2t: Queue,
+        q_t2f: Queue,
+        stop_event: threading.Event,
+    ):
         """Main display loop"""
         fps_history = []
         last_time = time.time()
 
         while not stop_event.is_set():
+            try:
+                d = q_t2f.get_nowait()
+                match d["cmd"]:
+                    case "change_camera":
+                        if self.current_camera_id == d["camera"]:
+                            continue
+                        if self.cap:
+                            self.cap.release()
+                        self.current_camera_id = d["camera"]
+                        self.create_cap()
+                        try:
+                            self.create_landmarker()
+                        except Exception as e:
+                            print(f"[ERROR] Failed to create Face Landmarker: {e}")
+            except Empty:
+                pass
+            if self.cap == None:
+                db_f2t.write({"status_text": "Waiting Camera"}, [])
+                time.sleep(0.1)
+                continue
+            if self.landmarker == None:
+                db_f2t.write({"status_text": "Waiting Landmarker"}, [])
+                time.sleep(0.1)
+                continue
+
             ret, frame = self.cap.read()
             if not ret:
                 print("[ERROR] Cannot read camera frame")
-                buffer.write({"status_text": "Error"}, [])
+                db_f2t.write({"status_text": "Error"}, [])
                 break
 
             # Horizontal flip (mirror effect, like selfie)
@@ -499,9 +530,7 @@ class FaceLandmarkerApp:
                     1,
                 )
 
-            # Display image
-            # cv2.imshow(self.window_name, display_image)
-            buffer.write(
+            db_f2t.write(
                 {
                     "metrics": {
                         "pitch": pitch or 0.0,
@@ -514,45 +543,33 @@ class FaceLandmarkerApp:
                 display_image,
             )
 
-            # Key handling
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q") or key == 27:  # Q or ESC
-                break
-            elif key == ord("s"):  # S key to save screenshot
-                screenshot_path = f"screenshot_{int(time.time())}.png"
-                cv2.imwrite(screenshot_path, display_image)
-                print(f"[INFO] Screenshot saved: {screenshot_path}")
-            elif key == ord("f"):  # F key to toggle fullscreen
-                is_fullscreen = cv2.getWindowProperty(
-                    self.window_name, cv2.WND_PROP_FULLSCREEN
-                )
-                cv2.setWindowProperty(
-                    self.window_name,
-                    cv2.WND_PROP_FULLSCREEN,
-                    cv2.WINDOW_FULLSCREEN if is_fullscreen != 1 else cv2.WINDOW_NORMAL,
-                )
-
     def enumerate_cameras(self, max_cameras=4):
         """
-        Enumerate available cameras in the system
-        :param max_cameras: Maximum number of cameras to check
+        Enumerate available cameras in the system using cv2-enumerate-cameras.
+        Note: max_cameras parameter is kept for API compatibility but is ignored
+              because the library enumerates all connected cameras.
         :return: List of available cameras [(index, name), ...]
         """
-        available_cameras = []
-        for i in range(max_cameras):
-            cap = cv2.VideoCapture(i)
+        cameras = cv2_enum_cameras()
+
+        for cam in cameras:
+            cap = cv2.VideoCapture(cam.index, cam.backend)
             if cap.isOpened():
-                # Try to get camera name
-                backend_name = cap.getBackendName()
                 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                available_cameras.append(
-                    (i, f"Camera {i} ({backend_name}, {width}x{height})")
-                )
+                backend_name = cap.getBackendName()
+                if cam.name:
+                    display_name = f"{cam.name} (Index {cam.index}, {backend_name}, {width}x{height})"
+                else:
+                    display_name = (
+                        f"Camera {cam.index} ({backend_name}, {width}x{height})"
+                    )
+                self.camera_arr.append((cam.index, display_name))
                 cap.release()
-        return available_cameras
 
-    def select_camera(self):
+        return self.camera_arr
+
+    def push_camera_choice(self, q_f2t: Queue, q_t2f: Queue):
         """
         Select camera to use
         :return: Selected camera index
@@ -573,20 +590,15 @@ class FaceLandmarkerApp:
         for idx, (cam_idx, cam_name) in enumerate(available_cameras):
             print(f"  {idx}. {cam_name}")
 
-        while True:
-            try:
-                choice = input("\nPlease select camera (enter number): ")
-                choice_idx = int(choice)
-                if 0 <= choice_idx < len(available_cameras):
-                    selected = available_cameras[choice_idx]
-                    print(f"[INFO] Selected: {selected[1]}")
-                    return selected[0]
-                else:
-                    print("[ERROR] Invalid selection, please re-enter")
-            except ValueError:
-                print("[ERROR] Please enter a valid number")
+        q_f2t.put({"cmd": "camera_selection", "data": available_cameras})
 
-    def run(self, buffer: DoubleBuffer, stop_event: threading.Event):
+    def run(
+        self,
+        db_f2t: DoubleBuffer,
+        q_f2t: Queue,
+        q_t2f: Queue,
+        stop_event: threading.Event,
+    ):
         """Main run function"""
         print("=" * 60)
         print("MediaPipe Face Landmarker Real Time")
@@ -597,22 +609,35 @@ class FaceLandmarkerApp:
         print("  F     - Toggle fullscreen")
         print("=" * 60)
 
-        # Create detector
-        try:
-            self.create_landmarker()
-        except Exception as e:
-            print(f"[ERROR] Failed to create Face Landmarker: {e}")
-            return
-
         # Open camera
-        camera_index = self.select_camera()
-        if camera_index == -1:
+        self.push_camera_choice(q_f2t, q_t2f)
+
+        self.running = True
+
+        try:
+            self.display_loop(db_f2t, q_f2t, q_t2f, stop_event)
+        except Exception as e:
+            print(f"[ERROR] Runtime error: {e}")
+            import traceback
+
+            traceback.print_exc()
+        finally:
+            self.cleanup()
+
+    def create_cap(self):
+        index = -1
+        for i, (idx, desc) in enumerate(self.camera_arr):
+            if f"{idx} " + "{" + desc + "}" == self.current_camera_id:
+                index = i
+                break
+
+        if index == -1:
             print("[ERROR] Cannot select camera")
             return
 
-        self.cap = cv2.VideoCapture(camera_index)
+        self.cap = cv2.VideoCapture(index)
         if not self.cap.isOpened():
-            print(f"[ERROR] Cannot open camera {camera_index}")
+            print(f"[ERROR] Cannot open camera {index}")
             return
 
         # Set camera resolution
@@ -625,24 +650,12 @@ class FaceLandmarkerApp:
         print(f"[INFO] Camera resolution: {actual_width}x{actual_height}")
 
         print("[INFO] Camera started, press Q to exit")
-        self.running = True
-
-        try:
-            self.display_loop(buffer, stop_event)
-        except Exception as e:
-            print(f"[ERROR] Runtime error: {e}")
-            import traceback
-
-            traceback.print_exc()
-        finally:
-            self.cleanup()
 
     def cleanup(self):
         """Clean up resources"""
         self.running = False
         if self.cap:
             self.cap.release()
-        cv2.destroyAllWindows()
         if self.landmarker:
             self.landmarker.close()
         print("[INFO] Program exited")

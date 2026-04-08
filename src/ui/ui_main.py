@@ -1,14 +1,16 @@
+import time
 import tkinter as tk
 from tkinter import ttk
+from queue import Queue
 from PIL import Image, ImageTk
-import time
 import cv2
 import numpy as np
 
 
 class PostureApp:
-    def __init__(self, root):
+    def __init__(self, root, q_t2f: Queue):
         self.root = root
+        self.q_t2f = q_t2f
 
         self.root.title("Posture Guard AI - 坐姿健康提神器")
         self.root.geometry("1000x700")
@@ -27,6 +29,7 @@ class PostureApp:
 
         self.setup_styles()
         self.create_widgets()
+        self.create_camera_combobox()
 
     def setup_styles(self):
         style = ttk.Style()
@@ -53,6 +56,15 @@ class PostureApp:
             font=("Segoe UI", 12),
         )
         style.configure("Modern.TButton", font=("Segoe UI", 10, "bold"))
+        style.configure(
+            "TCombobox",
+            background=self.colors["card"],
+            foreground=self.colors["text"],
+            fieldbackground=self.colors["card"],
+            borderwidth=0,
+            arrowcolor=self.colors["text"],
+            font=("Segoe UI", 10),
+        )
 
     def create_widgets(self):
         # 顶部标题栏
@@ -183,6 +195,21 @@ class PostureApp:
         )
         self.stop_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
+    def create_camera_combobox(self):
+        def _on_selected(event=None):
+            selected_value = self.camera_combobox.get()
+            if selected_value != self.camera_combobox.placeholder:
+                self.combobox_cam_changed(selected_value)
+
+        self.camera_combobox = ttk.Combobox(
+            self.root, values=[], state="readonly", style="TCombobox"
+        )
+        self.camera_combobox.bind("<<ComboboxSelected>>", _on_selected)
+        self.camera_combobox.set("--Please select camera--")
+        self.camera_combobox.placeholder = "--Please select camera--"
+        self.camera_combobox.original_values = []
+        self.camera_combobox.place(in_=self.root, relx=0.5, rely=0.04, anchor="n")
+
     def update_time(self):
         curr_time = time.strftime("%Y-%m-%d %H:%M:%S")
         self.time_label.config(text=curr_time)
@@ -283,6 +310,26 @@ class PostureApp:
                 self.add_log(alert_message)
         except Exception as e:
             print(f"Update status error: {e}")
+
+    def combobox_cam_changed(self, selected_value):
+        """Handle camera selection change"""
+        self.q_t2f.put_nowait({"cmd": "change_camera", "camera": selected_value})
+
+    def set_camera_combobox_values(self, values):
+        if self.camera_combobox:
+            # Store the current selection
+            current_selection = self.camera_combobox.get()
+
+            # Update the values
+            self.camera_combobox["values"] = values
+            self.camera_combobox.original_values = values
+
+            # If the current selection is not in the new values, reset to placeholder
+            if (
+                current_selection not in values
+                and current_selection != self.camera_combobox.placeholder
+            ):
+                self.camera_combobox.set(self.camera_combobox.placeholder)
 
 
 if __name__ == "__main__":
