@@ -14,7 +14,8 @@ from utils.DoubleBuffer import DoubleBuffer
 
 
 class FaceLandmarkerApp:
-    def __init__(self):
+    def __init__(self, test=False):
+        self.test = test
         # Initialize parameters
         self.cap = None
         self.landmarker = None
@@ -391,7 +392,9 @@ class FaceLandmarkerApp:
                         if pitch is not None and roll is not None:
                             self.baseline_pitch = pitch
                             self.baseline_roll = roll
-                            print(f"[INFO] Posture calibrated: Pitch={self.baseline_pitch:.2f}, Roll={self.baseline_roll:.2f}")
+                            print(
+                                f"[INFO] Posture calibrated: Pitch={self.baseline_pitch:.2f}, Roll={self.baseline_roll:.2f}"
+                            )
             except Empty:
                 pass
             if self.cap == None:
@@ -602,15 +605,8 @@ class FaceLandmarkerApp:
         q_t2f: Queue,
         stop_event: threading.Event,
     ):
-        """Main run function"""
-        print("=" * 60)
-        print("MediaPipe Face Landmarker Real Time")
-        print("=" * 60)
-        print("Controls:")
-        print("  Q/ESC - Exit program")
-        print("  S     - Save screenshot")
-        print("  F     - Toggle fullscreen")
-        print("=" * 60)
+        if self.test:
+            raise RuntimeError("run_test should be called instead of run in test mode")
 
         # Open camera
         self.push_camera_choice(q_f2t, q_t2f)
@@ -628,6 +624,9 @@ class FaceLandmarkerApp:
             self.cleanup()
 
     def create_cap(self):
+        if self.test:
+            return
+
         index = -1
         for i, (idx, desc) in enumerate(self.camera_arr):
             if f"{idx} " + "{" + desc + "}" == self.current_camera_id:
@@ -662,6 +661,81 @@ class FaceLandmarkerApp:
         if self.landmarker:
             self.landmarker.close()
         print("[INFO] Program exited")
+
+    def prepare_run_test(self):
+        if not self.test:
+            raise RuntimeError("prepare_run_test can only be called in test mode")
+
+        base_options = python.BaseOptions(model_asset_path=self.model_path)
+        options = vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.IMAGE,  # Image mode
+            num_faces=1,  # Maximum number of faces to detect
+            min_face_detection_confidence=0.5,  # Face detection confidence threshold
+            min_face_presence_confidence=0.5,  # Face presence confidence threshold
+            min_tracking_confidence=0.5,  # Tracking confidence threshold
+            output_face_blendshapes=True,  # Output expression blendshapes
+            output_facial_transformation_matrixes=True,  # Output facial transformation matrix
+        )
+        self.landmarker = vision.FaceLandmarker.create_from_options(options)
+        # self.cap =
+
+    def run_test(self, image_path, is_calibration=False):
+        if not self.test:
+            print("[ERROR] run_test can only be called in test mode")
+            return None
+
+        frame = cv2.imread(image_path)
+        if frame is None:
+            print(f"[ERROR] Cannot read image from {image_path}")
+            return None
+
+        # Convert BGR to RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Create MediaPipe Image object
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+
+        # Synchronous detection for IMAGE mode
+        detection_result = self.landmarker.detect(mp_image)
+
+        if not detection_result or not detection_result.face_landmarks:
+            print("[WARNING] No face detected in the image")
+            return None
+
+        face_landmarks = detection_result.face_landmarks[0]
+        frame_h, frame_w = frame.shape[:2]
+        roll, pitch, yaw = self.get_head_pose(face_landmarks, frame_w, frame_h)
+
+        if is_calibration:
+            if pitch is not None and roll is not None:
+                self.baseline_pitch = pitch
+                self.baseline_roll = roll
+                print(
+                    f"[INFO] Posture calibrated: Pitch={self.baseline_pitch:.2f}, Roll={self.baseline_roll:.2f}"
+                )
+                return {
+                    "pitch": pitch,
+                    "roll": roll,
+                    "yaw": yaw,
+                    "d_pitch": 0,
+                    "d_roll": 0,
+                    "turtle_neck": False,
+                    "head_tilted": False,
+                }
+        else:
+            if pitch is not None:
+                d_pitch = pitch - self.baseline_pitch
+                d_roll = roll - self.baseline_roll
+                return {
+                    "pitch": pitch,
+                    "roll": roll,
+                    "yaw": yaw,
+                    "d_pitch": d_pitch,
+                    "d_roll": d_roll,
+                    "turtle_neck": d_pitch < self.PITCH_THRESHOLD,
+                    "head_tilted": abs(d_roll) > self.ROLL_THRESHOLD,
+                }
 
 
 def main():
