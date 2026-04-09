@@ -142,7 +142,7 @@ class FaceLandmarkerApp:
 
         if pitch > 90:
             pitch = -pitch + 180
-        elif roll < -90:
+        elif pitch < -90:
             pitch = -pitch - 180
         if roll > 90:
             roll = roll - 180
