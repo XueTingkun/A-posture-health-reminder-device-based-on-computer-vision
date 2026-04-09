@@ -23,6 +23,9 @@ class FaceLandmarkerApp:
         self.camera_arr = []
         self.current_camera_id = -1
 
+        self.baseline_pitch = 0.0
+        self.baseline_roll = 0.0
+
         # Store detection results
         self.detection_result = None
         self.latest_image = None
@@ -136,6 +139,15 @@ class FaceLandmarkerApp:
         # Output order: pitch, yaw, roll
         angles, _, _, _, _, _ = cv2.RQDecomp3x3(rotation_matrix)
         pitch, yaw, roll = angles[0], angles[1], angles[2]
+
+        if pitch > 90:
+            pitch = -pitch + 180
+        elif roll < -90:
+            pitch = -pitch - 180
+        if roll > 90:
+            roll = roll - 180
+        elif roll < -90:
+            roll = roll + 180
 
         return roll, pitch, yaw
 
@@ -375,6 +387,11 @@ class FaceLandmarkerApp:
                             self.create_landmarker()
                         except Exception as e:
                             print(f"[ERROR] Failed to create Face Landmarker: {e}")
+                    case "calibrate_posture":
+                        if pitch is not None and roll is not None:
+                            self.baseline_pitch = pitch
+                            self.baseline_roll = roll
+                            print(f"[INFO] Posture calibrated: Pitch={self.baseline_pitch:.2f}, Roll={self.baseline_roll:.2f}")
             except Empty:
                 pass
             if self.cap == None:
@@ -401,6 +418,8 @@ class FaceLandmarkerApp:
             roll = None
             pitch = None
             yaw = None
+            d_pitch = None
+            d_roll = None
             status_text = "Normal"
 
             # Get latest detection result and draw
@@ -434,21 +453,14 @@ class FaceLandmarkerApp:
                             face_landmarks, frame_w, frame_h
                         )
                         if pitch is not None:
-                            # Display Pitch angle (looking down/up)
-                            cv2.putText(
-                                display_image,
-                                f"Pitch: {int(pitch)} deg",
-                                (10, 390),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.7,
-                                (0, 255, 255),
-                                2,
-                            )
+                            d_pitch = pitch - self.baseline_pitch
+                            d_roll = roll - self.baseline_roll
+
                             # Head down warning
-                            if pitch < self.PITCH_THRESHOLD:
+                            if d_pitch < self.PITCH_THRESHOLD:
                                 cv2.putText(
                                     display_image,
-                                    "WARNING: Turtle Neck (Head Down)!",
+                                    f"WARNING: Turtle Neck (Head Down)! d({int(d_pitch)} deg)",
                                     (10, 430),
                                     cv2.FONT_HERSHEY_SIMPLEX,
                                     0.7,
@@ -457,23 +469,12 @@ class FaceLandmarkerApp:
                                 )
                                 status_text = "Warning"
 
-                            # New: Display Roll angle (head tilt)
-                            cv2.putText(
-                                display_image,
-                                f"Roll: {int(roll)} deg",
-                                (10, 470),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.7,
-                                (255, 255, 0),
-                                2,
-                            )
-                            # Head tilt warning (left/right inclination)
-                            if abs(roll) > self.ROLL_THRESHOLD:
-                                direction = "Left" if roll > 0 else "Right"
+                            # Head tilt warning
+                            if abs(d_roll) > self.ROLL_THRESHOLD:
                                 cv2.putText(
                                     display_image,
-                                    f"WARNING: Head Tilted {direction}! ({int(roll)} deg)",
-                                    (10, 510),
+                                    f"WARNING: Head Tilted! d({int(d_roll)} deg)",
+                                    (10, 470),
                                     cv2.FONT_HERSHEY_SIMPLEX,
                                     0.7,
                                     (0, 0, 255),
@@ -537,6 +538,8 @@ class FaceLandmarkerApp:
                         "roll": roll or 0.0,
                         "yaw": yaw or 0.0,
                         "fps": fps or 0.0,
+                        "d_pitch": d_pitch or 0.0,
+                        "d_roll": d_roll or 0.0,
                     },
                     "status_text": status_text,
                 },

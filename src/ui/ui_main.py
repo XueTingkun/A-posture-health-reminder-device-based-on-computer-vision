@@ -30,6 +30,7 @@ class PostureApp:
         self.setup_styles()
         self.create_widgets()
         self.create_camera_combobox()
+        self.create_callbrate_button()
 
     def setup_styles(self):
         style = ttk.Style()
@@ -64,6 +65,15 @@ class PostureApp:
             borderwidth=0,
             arrowcolor=self.colors["text"],
             font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Calibrate.TButton",
+            background=self.colors["card"],
+            foreground="white",
+            borderwidth=0,
+            focuscolor="none",
+            padding=(20, 10),
+            font=("Segoe UI", 12, "bold"),
         )
 
     def create_widgets(self):
@@ -210,6 +220,15 @@ class PostureApp:
         self.camera_combobox.original_values = []
         self.camera_combobox.place(in_=self.root, relx=0.5, rely=0.04, anchor="n")
 
+    def create_callbrate_button(self):
+        self.calibrate_btn = ttk.Button(
+            self.root,
+            text="校准坐姿",
+            command=self.calibrate_posture,
+            style="Calibrate.TButton",
+        )
+        self.calibrate_btn.place(in_=self.root, relx=0.7, rely=0.03, anchor="n")
+
     def update_time(self):
         curr_time = time.strftime("%Y-%m-%d %H:%M:%S")
         self.time_label.config(text=curr_time)
@@ -299,8 +318,8 @@ class PostureApp:
 
             # Update dashboard metrics
             metrics = metadata.get("metrics", {})
-            metrics_text = f"Pitch: {metrics.get('pitch', 0.0):.1f}°\n"
-            metrics_text += f"Roll: {metrics.get('roll', 0.0):.1f}°\n"
+            metrics_text = f"Pitch: {metrics.get('pitch', 0.0):.1f}° dPitch: {metrics.get('d_pitch', 0.0):.1f}°\n"
+            metrics_text += f"Roll: {metrics.get('roll', 0.0):.1f}° dRoll: {metrics.get('d_roll', 0.0):.1f}°\n"
             metrics_text += f"Refresh rate: {metrics.get('fps', 0.0):.1f} FPS"
             self.metrics_text.set(metrics_text)
 
@@ -330,6 +349,11 @@ class PostureApp:
                 and current_selection != self.camera_combobox.placeholder
             ):
                 self.camera_combobox.set(self.camera_combobox.placeholder)
+
+    def calibrate_posture(self):
+        """Handle posture calibration"""
+        self.q_t2f.put_nowait({"cmd": "calibrate_posture"})
+        self.status_var.set("校准中...")
 
 
 if __name__ == "__main__":
