@@ -40,7 +40,9 @@ def process_videos(directory, output_dir, csv_path):
         "Press 'c' to Capture frame, 'q' to Quit current video, 'ESC' to Quit script."
     )
 
+    group_id = -1
     for video_name in videos:
+        group_id += 1
         video_path = os.path.join(directory, video_name)
         cap = cv2.VideoCapture(video_path)
 
@@ -49,10 +51,8 @@ def process_videos(directory, output_dir, csv_path):
             continue
 
         print(f"Playing: {video_name}")
-        group_id = -1
 
         while True:
-            group_id += 1
             ret, frame = cap.read()
 
             # If video finished or error reading frame
