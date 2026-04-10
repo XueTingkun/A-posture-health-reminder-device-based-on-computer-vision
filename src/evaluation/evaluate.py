@@ -25,6 +25,7 @@ FIELDNAMES = [
     "head_down",
     "head_tilted",
 ]
+os.makedirs(os.path.dirname(OUTPUT_CSV_PATH), exist_ok=True)
 
 
 class FaceEvaluator:
