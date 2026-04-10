@@ -463,7 +463,7 @@ class FaceLandmarkerApp:
                             if d_pitch < self.PITCH_THRESHOLD:
                                 cv2.putText(
                                     display_image,
-                                    f"WARNING: Turtle Neck (Head Down)! d({int(d_pitch)} deg)",
+                                    f"WARNING: Head down! d({int(d_pitch)} deg)",
                                     (10, 430),
                                     cv2.FONT_HERSHEY_SIMPLEX,
                                     0.7,
@@ -720,7 +720,7 @@ class FaceLandmarkerApp:
                     "yaw": yaw,
                     "d_pitch": 0,
                     "d_roll": 0,
-                    "turtle_neck": False,
+                    "head_down": False,
                     "head_tilted": False,
                 }
         else:
@@ -733,7 +733,7 @@ class FaceLandmarkerApp:
                     "yaw": yaw,
                     "d_pitch": d_pitch,
                     "d_roll": d_roll,
-                    "turtle_neck": d_pitch < self.PITCH_THRESHOLD,
+                    "head_down": d_pitch < self.PITCH_THRESHOLD,
                     "head_tilted": abs(d_roll) > self.ROLL_THRESHOLD,
                 }
 

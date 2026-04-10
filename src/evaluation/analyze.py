@@ -6,7 +6,7 @@ TYPE_BITS = {
     0: "Neutral pose",
     1: "Left head turn",
     2: "Right head turn",
-    4: "Turtle neck",
+    4: "Head down",
     8: "Left tilt",
     16: "Right tilt",
     32: "Head up",
@@ -23,7 +23,7 @@ def parse_type(type_value: int) -> Dict[str, bool]:
         "neutral": type_value == 0,
         "left_turn": bool(type_value & 1),
         "right_turn": bool(type_value & 2),
-        "turtle_neck": bool(type_value & 4),
+        "head_down": bool(type_value & 4),
         "left_tilt": bool(type_value & 8),
         "right_tilt": bool(type_value & 16),
         "head_up": bool(type_value & 32),
@@ -46,7 +46,7 @@ def calculate_metrics(tp: int, fp: int, fn: int) -> Dict[str, float]:
 
 def evaluate_results(csv_path: str, output_json_path: str):
     """Evaluate model results and save metrics"""
-    turtle_neck_metrics = {"tp": 0, "fp": 0, "fn": 0}
+    head_down_metrics = {"tp": 0, "fp": 0, "fn": 0}
     head_tilted_metrics = {"tp": 0, "fp": 0, "fn": 0}
 
     with open(csv_path, mode="r", encoding="utf-8") as file:
@@ -54,18 +54,18 @@ def evaluate_results(csv_path: str, output_json_path: str):
         for row in reader:
             type_flags = parse_type(int(row["type"]))
 
-            predicted_turtle_neck = row["turtle_neck"].lower() == "true"
+            predicted_head_down = row["head_down"].lower() == "true"
             predicted_head_tilted = row["head_tilted"].lower() == "true"
 
-            true_turtle_neck = type_flags["turtle_neck"]
+            true_head_down = type_flags["head_down"]
             true_head_tilted = type_flags["left_tilt"] or type_flags["right_tilt"]
 
-            if true_turtle_neck and predicted_turtle_neck:
-                turtle_neck_metrics["tp"] += 1
-            elif not true_turtle_neck and predicted_turtle_neck:
-                turtle_neck_metrics["fp"] += 1
-            elif true_turtle_neck and not predicted_turtle_neck:
-                turtle_neck_metrics["fn"] += 1
+            if true_head_down and predicted_head_down:
+                head_down_metrics["tp"] += 1
+            elif not true_head_down and predicted_head_down:
+                head_down_metrics["fp"] += 1
+            elif true_head_down and not predicted_head_down:
+                head_down_metrics["fn"] += 1
 
             if true_head_tilted and predicted_head_tilted:
                 head_tilted_metrics["tp"] += 1
@@ -74,15 +74,15 @@ def evaluate_results(csv_path: str, output_json_path: str):
             elif true_head_tilted and not predicted_head_tilted:
                 head_tilted_metrics["fn"] += 1
 
-    turtle_neck_results = calculate_metrics(
-        turtle_neck_metrics["tp"], turtle_neck_metrics["fp"], turtle_neck_metrics["fn"]
+    head_down_results = calculate_metrics(
+        head_down_metrics["tp"], head_down_metrics["fp"], head_down_metrics["fn"]
     )
 
     head_tilted_results = calculate_metrics(
         head_tilted_metrics["tp"], head_tilted_metrics["fp"], head_tilted_metrics["fn"]
     )
 
-    results = {"turtle_neck": turtle_neck_results, "head_tilted": head_tilted_results}
+    results = {"head_down": head_down_results, "head_tilted": head_tilted_results}
 
     with open(output_json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=4)

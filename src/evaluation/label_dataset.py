@@ -18,7 +18,7 @@ Key Map (Values):
 0: Neutral pose
 1: Left head turn
 2: Right head turn
-4: Turtle neck
+4: Head down
 8: Left tilt
 16: Right tilt
 32: Head up

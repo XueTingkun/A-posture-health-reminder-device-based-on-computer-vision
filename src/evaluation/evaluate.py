@@ -22,7 +22,7 @@ FIELDNAMES = [
     "d_pitch",
     "d_roll",
     "d_yaw",
-    "turtle_neck",
+    "head_down",
     "head_tilted",
 ]
 
@@ -133,7 +133,7 @@ class FaceEvaluator:
                         "yaw": result["yaw"],
                         "d_pitch": result["d_pitch"],
                         "d_roll": result["d_roll"],
-                        "turtle_neck": result["turtle_neck"],
+                        "head_down": result["head_down"],
                         "head_tilted": result["head_tilted"],
                     }
                 )

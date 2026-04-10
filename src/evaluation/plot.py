@@ -24,10 +24,10 @@ RESULT_DIR = "./results/"
 
 
 def parse_type_flags(type_val):
-    """Parse type integer, return whether it contains turtle_neck and head_tilted"""
+    """Parse type integer, return whether it contains head_down and head_tilted"""
     t_val = int(type_val)
     return {
-        "is_turtle_neck": bool(t_val & 4),  # 0b100
+        "is_head_down": bool(t_val & 4),  # 0b100
         "is_head_tilted": bool(t_val & 8 or t_val & 16),  # 0b1000 or 0b10000
     }
 
@@ -144,10 +144,10 @@ def main(csv_file, type_json_file, metrics_json_file):
         return
 
     # Get metrics data (if exists)
-    tn_metrics = metrics_config.get("turtle_neck", {}) if metrics_config else {}
+    tn_metrics = metrics_config.get("head_down", {}) if metrics_config else {}
     ht_metrics = metrics_config.get("head_tilted", {}) if metrics_config else {}
 
-    # --- Process d_pitch and turtle_neck ---
+    # --- Process d_pitch and head_down ---
     fig, ax_scatter = plt.subplots(figsize=(16, 6))
 
     pitch_x = []
@@ -163,7 +163,7 @@ def main(csv_file, type_json_file, metrics_json_file):
         pitch_y.append(row["d_pitch"])
 
         # Get predicted and actual values
-        predicted = str(row.get("turtle_neck", "False")).lower() == "true"
+        predicted = str(row.get("head_down", "False")).lower() == "true"
         try:
             type_val = int(row.get("type", 0))
             actual = bool(type_val & 4)
@@ -186,7 +186,7 @@ def main(csv_file, type_json_file, metrics_json_file):
         else:
             pitch_colors.append(COLORS["error"])
 
-        # Shape distinguishes actual class: circle=positive (is turtle_neck), triangle=negative (non turtle_neck)
+        # Shape distinguishes actual class: circle=positive (is head_down), triangle=negative (non head_down)
         if actual:
             pitch_markers.append("o")
         else:
@@ -207,7 +207,7 @@ def main(csv_file, type_json_file, metrics_json_file):
         if points:
             px, py = zip(*points)
             is_correct = color == COLORS["correct"]
-            label_text = f"{'Turtle Neck' if marker == 'o' else 'Non Turtle Neck'} ({'Correct' if is_correct else 'Error'})"
+            label_text = f"{'Head down' if marker == 'o' else 'Non Head down'} ({'Correct' if is_correct else 'Error'})"
             ax_scatter.scatter(
                 px,
                 py,
@@ -237,16 +237,16 @@ def main(csv_file, type_json_file, metrics_json_file):
     plt.close()
     print(f"The chart has been saved to: {RESULT_DIR}d_pitch_analysis.png")
 
-    # Plot turtle_neck metrics separately
+    # Plot head_down metrics separately
     fig, ax_metrics = plt.subplots(figsize=(8, 6))
-    plot_metric_bars(tn_metrics, ax_metrics, "turtle_neck Metrics")
+    plot_metric_bars(tn_metrics, ax_metrics, "head_down Metrics")
 
     plt.tight_layout()
-    plt.savefig(f"{RESULT_DIR}turtle_neck_metrics.png", dpi=150, bbox_inches="tight")
+    plt.savefig(f"{RESULT_DIR}head_down_metrics.png", dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"The chart has been saved to: {RESULT_DIR}turtle_neck_metrics.png")
+    print(f"The chart has been saved to: {RESULT_DIR}head_down_metrics.png")
 
-    # Plot turtle_neck confusion matrix (separate figure)
+    # Plot head_down confusion matrix (separate figure)
     fig, ax = plt.subplots(figsize=(8, 6))
     tn_cm = [[tn_tn, tn_fp], [tn_fn, tn_tp]]
     total = tn_tn + tn_fp + tn_fn + tn_tp
@@ -283,15 +283,15 @@ def main(csv_file, type_json_file, metrics_json_file):
                 alpha=0.8,
             )
 
-    ax.set_title("turtle_neck Confusion Matrix", fontsize=14, fontweight="bold")
+    ax.set_title("head_down Confusion Matrix", fontsize=14, fontweight="bold")
     ax.set_ylabel("True Label", fontsize=12)
     ax.set_xlabel("Predicted Label", fontsize=12)
     plt.tight_layout()
     plt.savefig(
-        f"{RESULT_DIR}turtle_neck_confusion_matrix.png", dpi=150, bbox_inches="tight"
+        f"{RESULT_DIR}head_down_confusion_matrix.png", dpi=150, bbox_inches="tight"
     )
     plt.close()
-    print(f"The chart has been saved to: {RESULT_DIR}turtle_neck_confusion_matrix.png")
+    print(f"The chart has been saved to: {RESULT_DIR}head_down_confusion_matrix.png")
 
     # --- Process d_roll and head_tilted ---
     fig, ax_scatter = plt.subplots(figsize=(16, 6))
