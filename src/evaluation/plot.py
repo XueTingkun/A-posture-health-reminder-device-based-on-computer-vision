@@ -1,9 +1,15 @@
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import csv
 import json
-import os
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from utils.config import PITCH_THRESHOLD, ROLL_THRESHOLD
 
 # Set unified style
 plt.style.use("seaborn-v0_8-whitegrid")
@@ -221,11 +227,11 @@ def main(csv_file, type_json_file, metrics_json_file):
             )
 
     ax_scatter.axhline(
-        y=-25,
+        y=PITCH_THRESHOLD,
         color=COLORS["threshold"],
         linestyle="--",
         linewidth=2,
-        label="Threshold (-25)",
+        label=f"Threshold ({PITCH_THRESHOLD})",
     )
     ax_scatter.set_title("d_pitch Analysis", fontsize=14, fontweight="bold")
     ax_scatter.set_xlabel("Sample Index", fontsize=12)
@@ -363,18 +369,18 @@ def main(csv_file, type_json_file, metrics_json_file):
             )
 
     ax_scatter.axhline(
-        y=15,
+        y=ROLL_THRESHOLD,
         color=COLORS["threshold"],
         linestyle="--",
         linewidth=2,
-        label="Threshold (+15)",
+        label=f"Threshold (+{ROLL_THRESHOLD})",
     )
     ax_scatter.axhline(
-        y=-15,
+        y=-ROLL_THRESHOLD,
         color=COLORS["threshold"],
         linestyle="--",
         linewidth=2,
-        label="Threshold (-15)",
+        label=f"Threshold (-{ROLL_THRESHOLD})",
     )
     ax_scatter.set_title("d_roll Analysis", fontsize=14, fontweight="bold")
     ax_scatter.set_xlabel("Sample Index", fontsize=12)

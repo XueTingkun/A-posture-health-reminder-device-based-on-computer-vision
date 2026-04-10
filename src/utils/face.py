@@ -11,6 +11,7 @@ from mediapipe.tasks.python import vision
 import numpy as np
 
 from utils.DoubleBuffer import DoubleBuffer
+from utils.config import PITCH_THRESHOLD, ROLL_THRESHOLD
 
 
 class FaceLandmarkerApp:
@@ -58,11 +59,6 @@ class FaceLandmarkerApp:
         )
         # Corresponding 2D key point indices (MediaPipe 478-point model)
         self.image_points_idx = [1, 199, 33, 263, 61, 291]
-
-        # Head down threshold (angle, negative value indicates looking down)
-        self.PITCH_THRESHOLD = -25  # Warning triggered when looking down exceeds 25°
-        # Head tilt threshold (warning triggered when absolute value exceeds this)
-        self.ROLL_THRESHOLD = 15  # Warning triggered when side tilt exceeds 15°
 
     def result_callback(self, result, output_image: mp.Image, timestamp_ms: int):
         """Asynchronous detection result callback function (executed in a separate thread)"""
@@ -460,7 +456,7 @@ class FaceLandmarkerApp:
                             d_roll = roll - self.baseline_roll
 
                             # Head down warning
-                            if d_pitch < self.PITCH_THRESHOLD:
+                            if d_pitch < PITCH_THRESHOLD:
                                 cv2.putText(
                                     display_image,
                                     f"WARNING: Head down! d({int(d_pitch)} deg)",
@@ -473,7 +469,7 @@ class FaceLandmarkerApp:
                                 status_text = "Warning"
 
                             # Head tilt warning
-                            if abs(d_roll) > self.ROLL_THRESHOLD:
+                            if abs(d_roll) > ROLL_THRESHOLD:
                                 cv2.putText(
                                     display_image,
                                     f"WARNING: Head Tilted! d({int(d_roll)} deg)",
@@ -733,8 +729,8 @@ class FaceLandmarkerApp:
                     "yaw": yaw,
                     "d_pitch": d_pitch,
                     "d_roll": d_roll,
-                    "head_down": d_pitch < self.PITCH_THRESHOLD,
-                    "head_tilted": abs(d_roll) > self.ROLL_THRESHOLD,
+                    "head_down": d_pitch < PITCH_THRESHOLD,
+                    "head_tilted": abs(d_roll) > ROLL_THRESHOLD,
                 }
 
     def draw_landmarks_only(self, image_path, output_path=None):

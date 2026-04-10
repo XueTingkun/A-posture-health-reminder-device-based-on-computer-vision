@@ -155,3 +155,6 @@ dataset/
 
 # results
 results/
+
+# config
+config/
