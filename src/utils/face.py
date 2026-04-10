@@ -737,6 +737,29 @@ class FaceLandmarkerApp:
                     "head_tilted": abs(d_roll) > self.ROLL_THRESHOLD,
                 }
 
+    def draw_landmarks_only(self, image_path, output_path=None):
+        frame = cv2.imread(image_path)
+        if frame is None:
+            print(f"[ERROR] Cannot read image from {image_path}")
+            return None
+
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        detection_result = self.landmarker.detect(mp_image)
+
+        if not detection_result or not detection_result.face_landmarks:
+            print("[WARNING] No face detected in the image")
+            return None
+
+        display_image = self.draw_landmarks_on_image(rgb_frame, detection_result)
+        display_image = cv2.cvtColor(display_image, cv2.COLOR_RGB2BGR)
+
+        if output_path:
+            cv2.imwrite(output_path, display_image)
+            print(f"[INFO] Image saved to {output_path}")
+
+        return display_image
+
 
 def main():
     """Program entry point"""
